@@ -20,19 +20,32 @@ pytest
 data/raw/        CSVs (categories, customers, order_items, orders, products, promotions)
 data/policies/   manual de políticas (PDF)
 src/agent/       orchestrator, prompt, tool_registry
-src/tools/       products, orders, policies (schemas + handlers)
+src/tools/       products, orders, policies (schemas + handlers); errors
 src/data/        loader (limpeza) e repositories (único acesso aos dados)
-src/policies/    sectioner do PDF por seção/página
-src/services/    memória (SQLite) e estado de sessão
-tests/           unit/ e integration/
+src/policies/    sectioner do PDF por seção/página (Fase 3)
+src/services/    pricing (PIX, parcelamento), returns (prazos), memory (sessão)
+tests/           conftest.py + unit/ (e integration/ nas próximas fases)
 examples/        3–5 conversas de exemplo
 ```
 
 ## Decisões técnicas  _(preencher)_
 - Framework/abordagem: function calling, agente único
-- Modelo e provedor: _a definir_
+- Modelo e provedor: **Google Gemini**, via API. O agente depende de function calling nativo,
+  que o Gemini oferece. O modelo exato é configurável por `LLM_MODEL` no `.env` (ver
+  `.env.example`), e o orquestrador é agnóstico de provedor (recebe o cliente LLM por injeção),
+  então trocar de modelo ou provedor não afeta tools, dados nem testes.
 - Políticas: manual seccionado por tópico (enum) + página; sem embeddings
 - Persistência: SQLite só para histórico/estado de sessão
+- Busca de produtos: casamento por prefixo de palavra em nome/categoria/descrição/specs, com
+  fallback tolerante a typos via `difflib` (stdlib). O catálogo tem 65 itens, então não há
+  motivo para busca vetorial nem dependência extra.
+- Cálculos fora do LLM: preço final, desconto PIX (§3/§6.2), parcelamento (§3.1) e prazos de
+  troca/devolução (§4, §8.1) são feitos em Python e entregues prontos às tools.
+- Segurança de pedidos: o `customer_id` verificado vive no estado da sessão (nunca é argumento
+  de tool). Verificação = número do pedido + telefone/email do dono daquele pedido; falhas
+  retornam sempre a mesma mensagem genérica e há bloqueio após 5 tentativas inválidas.
+- Validação de argumentos das tools: coerção/validação própria por schema no `ToolRegistry`
+  (tipos, enum, obrigatórios, campos desconhecidos); falhas viram erro estruturado, não exceção.
 
 ## Dados: o que encontrei e como tratei
 
@@ -58,4 +71,35 @@ Antes de definir a arquitetura, inspecionei os 6 CSVs e o PDF. O tratamento est�
 - Data de referência (`--today`), entrega real = `estimated_delivery`, contato canônico,
   parcelamento (§3.1 prevalece), lacunas do manual -> encaminhar a atendente.
 ## Limitações conhecidas e próximos passos  _(preencher)_
-## Uso de assistentes de código  _(preencher — registrar desde já)_
+## Uso de assistentes de código
+
+**Ferramentas:**
+- **ChatGPT (OpenAI):** rascunho inicial da arquitetura (monólito modular, agente único,
+  function calling e RAG), antes de eu ter visto os dados.
+- **Claude (Anthropic), modelo Claude Sonnet 5.5:** pela interface de chat do claude.ai, com
+  execução de código e leitura dos arquivos do desafio. Foi meu par de programação e revisão
+  de arquitetura, em uma conversa contínua, da revisão da proposta até a implementação.
+
+O Gemini é o LLM **do produto** (o que atende o cliente), não foi usado para escrever o código.
+
+**Como usei, por etapa:**
+1. **Arquitetura:** o ChatGPT gerou o rascunho inicial. Levei esse rascunho ao Claude, que o
+   confrontou com o enunciado e sugeriu enxugar a estrutura de pastas e decidir sobre RAG só
+   depois de ver o PDF. A arquitetura final é o resultado dessa revisão.
+2. **Análise dos dados:** o assistente leu os 6 CSVs e o PDF e levantou inconsistências
+   (disponibilidade versus status, promoções inativas, email duplicado, divergências no
+   manual). Aceitei as conclusões depois de conferir os casos, e elas estão em
+   "Dados" e "Suposições".
+3. **Implementação por fases:** o assistente gerou o esqueleto do projeto, o `loader`, os
+   repositórios, as tools, o registro de tools e os testes. Trabalhamos em fases pequenas,
+   uma por commit, e a cada fase eu revisei o código e as decisões antes de seguir.
+4. **Testes:** o assistente escreveu os testes unitários contra os CSVs reais e os executou no
+   ambiente dele com um runner mínimo, porque o `pytest` não estava disponível lá. Os testes
+   foram escritos para rodar com `pytest` normal, e eu os executo localmente a cada fase.
+
+**O que decidi eu:** o escopo e a ordem das fases, o uso do Gemini, o que entra no README e
+quais sugestões aceitar (por exemplo, dispensar ChromaDB/embeddings e usar o manual seccionado).
+
+**Limites que reconheço:** código gerado por IA precisa de revisão humana. Mantive os testes
+como rede de segurança e documentei como suposições os pontos em que o manual é omisso ou
+contraditório, em vez de deixar o modelo ou o assistente decidirem em silêncio.
