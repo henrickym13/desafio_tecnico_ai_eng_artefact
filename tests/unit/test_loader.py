@@ -1,15 +1,7 @@
 """Fase 1: testes do tratamento de dados, contra os CSVs reais."""
 import datetime as dt
 
-import pytest
-
-from src.config import settings
-from src.data.loader import load_dataset, normalize_phone, normalize_text
-
-
-@pytest.fixture(scope="module")
-def ds():
-    return load_dataset(settings.raw_data_dir)
+from src.data.loader import normalize_phone, normalize_text
 
 
 def _product(ds, product_id):
