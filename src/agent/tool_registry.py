@@ -11,8 +11,9 @@ from typing import Any, Callable
 
 from src.data.repositories import OrderRepository, ProductRepository
 from src.policies.sectioner import PolicySection
-from src.services.memory import SessionState
+from src.services.memory import Memory, SessionState
 from src.tools import orders as order_tools
+from src.tools import handoff as handoff_tools
 from src.tools import policies as policy_tools
 from src.tools import products as product_tools
 from src.services.store_hours import TZ
@@ -80,7 +81,7 @@ def validate_args(schema: dict, args: Any) -> dict:
 
 class ToolRegistry:
     def __init__(self, *, products: ProductRepository, orders: OrderRepository,
-                 policy_sections: list[PolicySection],
+                 policy_sections: list[PolicySection], memory: Memory,
                  today_fn: Callable[[], date] = date.today,
                  now_fn: Callable[[], datetime] = lambda: datetime.now(TZ)) -> None:
         self._tools: dict[str, tuple[dict, Handler]] = {}
@@ -97,6 +98,8 @@ class ToolRegistry:
                       lambda session, **kw: policy_tools.consultar_politicas(policy_sections, **kw))
         self.register(policy_tools.LOJA_ABERTA_AGORA_SCHEMA,
                       lambda session, **kw: policy_tools.loja_aberta_agora(now_fn))
+        self.register(handoff_tools.ENCAMINHAR_ATENDENTE_SCHEMA,
+                      lambda session, **kw: handoff_tools.encaminhar_atendente(memory, session, **kw))
 
     def register(self, schema: dict, handler: Handler) -> None:
         self._tools[schema["name"]] = (schema, handler)

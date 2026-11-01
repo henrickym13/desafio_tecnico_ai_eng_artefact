@@ -6,6 +6,8 @@ dizer ao cliente "o manual diz" sobre elas.
 """
 from __future__ import annotations
 
+STORE_PHONE = "(67) 3341-4444"
+
 INTERNAL_NOTES: dict[str, list[str]] = {
     "1": [
         "O manual cita 'mais de 300 instrumentos' e linhas de sopro e cordas orquestrais, mas o catálogo "
@@ -28,7 +30,7 @@ INTERNAL_NOTES: dict[str, list[str]] = {
         "30 dias, oriente acionar a garantia com o fabricante (a loja pode intermediar). Para prazos "
         "de um pedido, use verificar_elegibilidade_devolucao: nunca conte dias por conta própria.",
         "O manual não diz se o arrependimento vale para compra presencial nem como cancelar um pedido "
-        "ainda não enviado. Nesses casos, diga que vai confirmar com a equipe e encaminhe a um atendente.",
+        "ainda não enviado. Nesses casos, use encaminhar_atendente e diga ao cliente que a equipe vai confirmar.",
     ],
     "7": [
         "O §7 cita o WhatsApp (67) 3321-4500, diferente do telefone/WhatsApp do §1.2. Use sempre "
