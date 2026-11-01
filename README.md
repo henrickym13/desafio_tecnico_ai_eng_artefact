@@ -22,19 +22,28 @@ data/policies/   manual de políticas (PDF)
 src/agent/       orchestrator, prompt, tool_registry
 src/tools/       products, orders, policies (schemas + handlers); errors
 src/data/        loader (limpeza) e repositories (único acesso aos dados)
-src/policies/    sectioner do PDF por seção/página (Fase 3)
-src/services/    pricing (PIX, parcelamento), returns (prazos), memory (sessão)
+src/policies/    sectioner do PDF por seção/página e notas internas (contradições do manual)
+src/services/    pricing (PIX, parcelamento), returns (prazos), store_hours (horário), memory (sessão)
 tests/           conftest.py + unit/ (e integration/ nas próximas fases)
 examples/        3–5 conversas de exemplo
 ```
 
-## Decisões técnicas  _(preencher)_
+## Decisões técnicas
 - Framework/abordagem: function calling, agente único
 - Modelo e provedor: **Google Gemini**, via API. O agente depende de function calling nativo,
   que o Gemini oferece. O modelo exato é configurável por `LLM_MODEL` no `.env` (ver
   `.env.example`), e o orquestrador é agnóstico de provedor (recebe o cliente LLM por injeção),
   então trocar de modelo ou provedor não afeta tools, dados nem testes.
-- Políticas: manual seccionado por tópico (enum) + página; sem embeddings
+- Políticas: sem RAG vetorial. O manual tem 8 páginas (~1.700 palavras), então é dividido por
+  seção numerada (`pdfplumber`) e exposto na tool `consultar_politicas(topico)` com enum de
+  tópicos, devolvendo texto e página. É determinístico, não precisa de banco vetorial nem de
+  embeddings, e o log mostra quando o agente foi buscar política e quando foi buscar dado. O
+  LLM pode chamar a tool mais de uma vez para perguntas que cruzam temas. Como uma contradição
+  do manual não deve ser resolvida de um jeito diferente a cada resposta, cada seção devolve
+  também `notas_internas` (ver Suposições). Se o PDF mudar de estrutura, o carregamento falha
+  em vez de indexar errado.
+- Horário de funcionamento: `loja_aberta_agora` calcula em Python (fuso de Campo Grande), porque
+  o LLM não sabe que horas são. Um teste garante que as constantes batem com o §2 do manual.
 - Persistência: SQLite só para histórico/estado de sessão
 - Busca de produtos: casamento por prefixo de palavra em nome/categoria/descrição/specs, com
   fallback tolerante a typos via `difflib` (stdlib). O catálogo tem 65 itens, então não há
@@ -67,9 +76,25 @@ Antes de definir a arquitetura, inspecionei os 6 CSVs e o PDF. O tratamento est�
 
 **Integridade referencial:** pedidos, itens, clientes e produtos se relacionam sem registros
 órfãos (verificado em teste).
-## Suposições  _(preencher)_
-- Data de referência (`--today`), entrega real = `estimated_delivery`, contato canônico,
-  parcelamento (§3.1 prevalece), lacunas do manual -> encaminhar a atendente.
+## Suposições
+
+Onde o manual é contraditório ou omisso, o agente aplica sempre a mesma regra (código em
+`src/policies/notes.py`) e, na dúvida, diz que vai confirmar com a equipe, como pede o §10 do
+manual.
+
+| Ponto | Suposição adotada |
+|---|---|
+| Parcelamento: a tabela do §3 diz parcela mínima de R$ 100; o §3.1 escalona | Prevalece o §3.1 (mais específico): 4–6x mínimo R$ 80, 7–12x mínimo R$ 100. Em 2–3x, interpreto "exceto abaixo de R$ 50" como parcela mínima de R$ 50 |
+| Troca por defeito em 30 dias (§4.2) vs. garantia legal de 90 dias (§8.1) | Dentro de 30 dias: troca pela loja. Depois: garantia com o fabricante (a loja pode intermediar), até 90 dias de garantia legal |
+| Contato: telefone (67) 3341-4444 no §1.2 vs. WhatsApp (67) 3321-4500 no §7; e-mail com e sem acento | Uso (67) 3341-4444 e `contato@emporiodamusica.com.br` (sem acento) |
+| "Mais de 300 instrumentos" e sopros/cordas orquestrais no manual; o catálogo tem 65 itens e essas categorias estão vazias | O catálogo (CSV) é a fonte de verdade. O agente não cita quantidade e informa quando não há itens |
+| Data de recebimento não existe nos dados | `estimated_delivery` é usada como proxy da entrega nos prazos de troca/devolução |
+| "Hoje" nas regras de prazo | Data real por padrão; `--today YYYY-MM-DD` (ou `TODAY_OVERRIDE`) reproduz cenários. Os pedidos do CSV vão até 22/03/2026 |
+| Arrependimento é descrito para "compras online" | Todos os pedidos têm envio/rastreio, então são tratados como compra online |
+| O manual não diz como cancelar um pedido ainda não enviado | O agente explica que não é caso de devolução e encaminha a um atendente |
+| Sem lista de feriados | O agente informa que feriados são fechados, mas não consegue saber se hoje é feriado |
+| Pedidos 3 e 20 com total diferente da soma dos itens | `total_brl` é o valor pago; o agente não recalcula |
+
 ## Limitações conhecidas e próximos passos  _(preencher)_
 ## Uso de assistentes de código
 

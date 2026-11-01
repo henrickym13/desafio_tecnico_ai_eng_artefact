@@ -7,7 +7,8 @@ from src.tools.policies import CONSULTAR_POLITICAS_SCHEMA
 
 def test_only_registered_tools_are_exposed(registry):
     names = {s["name"] for s in registry.get_schemas()}
-    assert names == {"buscar_produtos", "detalhes_produto", "consultar_pedido", "verificar_elegibilidade_devolucao"}
+    assert names == {"buscar_produtos", "detalhes_produto", "consultar_pedido",
+                     "verificar_elegibilidade_devolucao", "consultar_politicas", "loja_aberta_agora"}
 
 
 def test_llm_never_sees_customer_id_in_schemas(registry):

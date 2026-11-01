@@ -6,13 +6,16 @@ Valida e converte os argumentos do LLM conforme o schema e devolve erros estrutu
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Callable
 
 from src.data.repositories import OrderRepository, ProductRepository
+from src.policies.sectioner import PolicySection
 from src.services.memory import SessionState
 from src.tools import orders as order_tools
+from src.tools import policies as policy_tools
 from src.tools import products as product_tools
+from src.services.store_hours import TZ
 from src.tools.errors import ToolError
 
 log = logging.getLogger(__name__)
@@ -77,7 +80,9 @@ def validate_args(schema: dict, args: Any) -> dict:
 
 class ToolRegistry:
     def __init__(self, *, products: ProductRepository, orders: OrderRepository,
-                 today_fn: Callable[[], date] = date.today) -> None:
+                 policy_sections: list[PolicySection],
+                 today_fn: Callable[[], date] = date.today,
+                 now_fn: Callable[[], datetime] = lambda: datetime.now(TZ)) -> None:
         self._tools: dict[str, tuple[dict, Handler]] = {}
         self.register(product_tools.BUSCAR_PRODUTOS_SCHEMA,
                       lambda session, **kw: product_tools.buscar_produtos(products, **kw))
@@ -88,7 +93,10 @@ class ToolRegistry:
         self.register(order_tools.ELEGIBILIDADE_DEVOLUCAO_SCHEMA,
                       lambda session, **kw: order_tools.verificar_elegibilidade_devolucao(
                           orders, session, today_fn(), **kw))
-        # consultar_politicas é registrada na Fase 3 (register(CONSULTAR_POLITICAS_SCHEMA, ...)).
+        self.register(policy_tools.CONSULTAR_POLITICAS_SCHEMA,
+                      lambda session, **kw: policy_tools.consultar_politicas(policy_sections, **kw))
+        self.register(policy_tools.LOJA_ABERTA_AGORA_SCHEMA,
+                      lambda session, **kw: policy_tools.loja_aberta_agora(now_fn))
 
     def register(self, schema: dict, handler: Handler) -> None:
         self._tools[schema["name"]] = (schema, handler)

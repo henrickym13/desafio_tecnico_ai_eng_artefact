@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from src.services.store_hours import TZ
 
 load_dotenv()
 
@@ -28,6 +30,15 @@ class Settings:
         """'Hoje' para regras de prazo. TODAY_OVERRIDE permite reproduzir cenários."""
         override = os.getenv("TODAY_OVERRIDE", "").strip()
         return date.fromisoformat(override) if override else date.today()
+
+    @property
+    def now(self) -> datetime:
+        """Agora em Campo Grande/MS. Com TODAY_OVERRIDE, usa essa data e o horário real."""
+        real = datetime.now(TZ)
+        override = os.getenv("TODAY_OVERRIDE", "").strip()
+        if not override:
+            return real
+        return datetime.combine(date.fromisoformat(override), real.time(), tzinfo=TZ)
 
 
 settings = Settings()
